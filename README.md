@@ -29,16 +29,14 @@ A Godspeed plugin that enables natural language to SQL conversion and multi-data
 # Required dependencies
 npm install @godspeedsystems/core @google/generative-ai pg mysql2 mongodb oracledb redis
 ```
-
 ## Configuration
 
-### Environment Variables
-
-Create a `.env` file with the following variables:
+### Environment Setup
+Create or update your `.env` file with the following:
 
 ```env
-# Gemini Configuration
-GEMINI_API_KEY=your_gemini_api_key_here
+# Gemini API Configuration
+GEMINI_API_KEY=your_gemini_api_key
 
 # PostgreSQL Configuration
 PG_USER=your_postgres_user
@@ -66,187 +64,130 @@ ORACLE_CONNECT_STRING=localhost:1521/XEPDB1
 REDIS_URL=redis://localhost:6379
 ```
 
-### Plugin Configuration
+### DataSource Configuration
+Create a YAML configuration file `src/datasources/text-to-sql.yaml`:
 
-Create `text-to-sql.json` in your project:
+```yaml
+type: text-to-sql
+config:
+  gemini:
+    apiKey: ${GEMINI_API_KEY}
+  databases:
+    postgres:
+      enabled: true
+      config:
+        user: ${PG_USER}
+        host: ${PG_HOST}
+        database: ${PG_DB}
+        password: ${PG_PASSWORD}
+        port: ${PG_PORT}
+    mysql:
+      enabled: true
+      config:
+        host: ${MYSQL_HOST}
+        user: ${MYSQL_USER}
+        password: ${MYSQL_PASSWORD}
+        database: ${MYSQL_DB}
+    mongodb:
+      enabled: true
+      config:
+        url: ${MONGODB_URL}
+        database: ${MONGODB_DB}
+    oracle:
+      enabled: true
+      config:
+        user: ${ORACLE_USER}
+        password: ${ORACLE_PASSWORD}
+        connectString: ${ORACLE_CONNECT_STRING}
+  cache:
+    enabled: true
+    ttl: 3600
+```
+
+## Example Usage
+
+### Basic Query Event Configuration
+Create a new file `src/events/query.yaml`:
+
+```yaml
+'http.post./query':
+  fn: execute-query
+  body:
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+            dbType:
+              type: string
+              default: postgres
+          required: ['query']
+```
+
+### Query Execution Workflow
+Define your function `src/functions/execute-query.yaml`:
+
+```yaml
+id: execute-query
+summary: Execute natural language query
+tasks:
+  - id: convert-and-execute
+    fn: datasource.text-to-sql.execute
+    args:
+      query: <% inputs.body.query %>
+      dbType: <% inputs.body.dbType || 'postgres' %>
+```
+
+### Example Requests
+
+1. **Simple Query Request:**
+```bash
+curl -X POST http://localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Find all active users"}'
+```
+
+2. **Complex Query Request:**
+```bash
+curl -X POST http://localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Show total sales by category for the last quarter",
+    "dbType": "mysql"
+  }'
+```
+
+### Example Responses
 
 ```json
 {
-  "gemini": {
-    "apiKey": "${process.env.GEMINI_API_KEY}"
-  },
-  "databases": {
-    "postgres": {
-      "enabled": true,
-      "config": {
-        "user": "${PG_USER}",
-        "host": "${PG_HOST}",
-        "database": "${PG_DB}",
-        "password": "${PG_PASSWORD}",
-        "port": "${PG_PORT}"
-      }
+  "sql": "SELECT category, SUM(amount) AS total_sales FROM sales WHERE date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)",
+  "data": [
+    {
+      "category": "Electronics",
+      "total_sales": 105000
     }
-  },
-  "redis": {
-    "url": "${REDIS_URL}"
+  ],
+  "metadata": {
+    "rowCount": 1,
+    "executionTime": 48
   }
-}
-```
-
-## Usage
-
-### Basic Query Execution
-
-```typescript
-const result = await dataSource.execute(ctx, {
-  query: "Find all active users",
-  dbType: "postgres",
-});
-```
-
-### Query Validation
-
-```typescript
-const validation = await dataSource.execute(ctx, {
-  query: "Show me sales data",
-  validateOnly: true,
-});
-```
-
-### Cache Control
-
-```typescript
-const result = await dataSource.execute(ctx, {
-  query: "List all products",
-  cache: false, // Disable caching
-});
-```
-
-## API Reference
-
-### DataSource Class Methods
-
-#### initClient()
-
-Initializes database connections and caching.
-
-```typescript
-protected async initClient(): Promise<object>
-```
-
-#### execute()
-
-Executes queries and manages results.
-
-```typescript
-async execute(
-  ctx: GSContext,
-  args: {
-    query: string;          // Natural language query
-    dbType?: string;        // Database type (default: 'postgres')
-    validateOnly?: boolean; // Validate without executing
-    cache?: boolean;       // Enable/disable caching
-  }
-): Promise<QueryResult>
-```
-
-#### cleanup()
-
-Closes all connections properly.
-
-```typescript
-async cleanup(): Promise<void>
-```
-
-### Interfaces
-
-#### QueryResult
-
-```typescript
-interface QueryResult {
-  data: any[];
-  metadata?: {
-    rowCount?: number;
-    columns?: string[];
-  };
-}
-```
-
-#### DatabaseConfig
-
-```typescript
-interface DatabaseConfig {
-  type: "postgres" | "mysql" | "mongodb" | "oracle";
-  config: any;
 }
 ```
 
 ## Error Handling
 
-### Common Errors
-
-```typescript
-// Database Connection Error
+```json
 {
-  code: 'CONNECTION_ERROR',
-  message: 'Failed to connect to database',
-  details: error.message
-}
-
-// Query Execution Error
-{
-  code: 'QUERY_ERROR',
-  message: 'Failed to execute query',
-  details: error.message
+  "error": "QUERY_ERROR",
+  "message": "Failed to execute query",
+  "details": "Syntax error at or near 'total'"
 }
 ```
 
-## Best Practices
 
-### Query Writing
-
-1. Be specific with natural language queries
-2. Include relevant context
-3. Use proper English
-
-### Caching Strategy
-
-1. Enable caching for read-heavy operations
-2. Disable for real-time data requirements
-3. Configure appropriate TTL values
-
-### Connection Management
-
-1. Properly initialize connections
-2. Monitor connection pools
-3. Implement cleanup procedures
-
-## Logging
-
-The plugin uses Godspeed's built-in logger:
-
-```typescript
-logger.info("Operation successful");
-logger.error("Operation failed:", error);
-logger.debug("Debug information:", data);
-```
-
-## Examples
-
-### Complex Queries
-
-```typescript
-// Analytical Query
-const analysis = await dataSource.execute(ctx, {
-  query: "Calculate monthly sales growth by category for last quarter",
-  dbType: "postgres",
-});
-
-// Filtered Query
-const filtered = await dataSource.execute(ctx, {
-  query: "Find orders worth more than $1000 from California",
-  dbType: "mysql",
-});
 ```
 
 ## Limitations
@@ -275,7 +216,11 @@ const filtered = await dataSource.execute(ctx, {
    - Verify Redis connection
    - Check cache configuration
    - Monitor memory usage
+  
 
-## License
 
-This project is licensed under the MIT License.
+
+
+
+
+
