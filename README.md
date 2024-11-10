@@ -1,8 +1,5 @@
 ### plugin
 
-Here's a comprehensive documentation for your Text-to-SQL DataSource Plugin:
-
-````markdown
 # Text-to-SQL DataSource Plugin Documentation
 
 ## Overview
@@ -32,7 +29,6 @@ A Godspeed plugin that enables natural language to SQL conversion and multi-data
 # Required dependencies
 npm install @godspeedsystems/core @google/generative-ai pg mysql2 mongodb oracledb redis
 ```
-````
 
 ## Configuration
 
