@@ -162,7 +162,7 @@ http.post./sql-query:
             type: object
 ```
 
-### 3. Function Configuration
+### 3. Function Configuration(YAML)
 Create `src/functions/execute-query.yaml`:
 ```yaml
 id: execute-query
@@ -218,7 +218,7 @@ export default handler;
 ```
 
 ### 5. Plugin Code 
-Create `src/datasources/types/text-to-sql.ts` and copy the code in index.ts:
+Create `src/datasources/types/text-to-sql.ts` and copy the code :
 ```
 import {
     GSContext,
