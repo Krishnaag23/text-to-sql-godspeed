@@ -131,27 +131,27 @@ export default class MultiDBTextToSQLDataSource extends GSDataSource {
 
       try {
         this.redisClient = createClient({
-            url: process.env.REDIS_URL || 'redis://localhost:6379',
-            socket: {
-                reconnectStrategy: (retries) => {
-                    if (retries > 10) {
-                        logger.warn('Redis connection failed, continuing without cache');
-                        return false;
-                    }
-                    return Math.min(retries * 100, 3000);
-                }
+          url: process.env.REDIS_URL || 'redis://localhost:6379',
+          socket: {
+            reconnectStrategy: (retries) => {
+              if (retries > 10) {
+                logger.warn('Redis connection failed, continuing without cache');
+                return false;
+              }
+              return Math.min(retries * 100, 3000);
             }
+          }
         });
 
         this.redisClient.on('error', (err) => {
-            logger.warn('Redis Client Error', err);
+          logger.warn('Redis Client Error', err);
         });
 
         await this.redisClient.connect();
         logger.info('Redis connected successfully');
-    } catch (redisError) {
+      } catch (redisError) {
         logger.warn('Redis connection failed, continuing without cache', redisError);
-    }
+      }
 
       logger.info('Text-to-SQL service initialized successfully');
       return { status: 'initialized' };
@@ -324,8 +324,7 @@ export default class MultiDBTextToSQLDataSource extends GSDataSource {
         return `Table ${table} {\n${columns
           .map(
             (col) =>
-              `  ${col.column_name || col.COLUMN_NAME} ${
-                col.data_type || col.DATA_TYPE
+              `  ${col.column_name || col.COLUMN_NAME} ${col.data_type || col.DATA_TYPE
               }`,
           )
           .join('\n')}\n}`;
@@ -415,37 +414,41 @@ export default class MultiDBTextToSQLDataSource extends GSDataSource {
     const schema = this.schemas.get(dbType);
 
     try {
-      const prompt = `
-        Schema:
-        ${schema}
-  
-        Task: Convert this natural language query to a PostgreSQL query:
-        "${naturalQuery}"
-  
-        Requirements:
-        - Return only the raw SQL query
-        - No markdown formatting
-        - No explanations
-        - Must start with SELECT
-        - Only use existing tables and columns
+      const prompt = `You are an expert in ${dbType} databases. Your task is to convert natural language queries into SQL queries for ${dbType} database using the provided schema and natural language query.
+
+      Schema:
+      ${schema}
+
+      Task: Convert this natural language query to a ${dbType} query in SQL format, using the schema and natural query shared:
+      Requirements:
+      - Return only the raw SQL query as per the ${dbType}
+      - No markdown formatting
+      - No explanations
+      - Generated query must begin with SELECT very very important
+      - Only use existing tables and columns as per the schema provided
+      - Don't insert new line characters in generated SQL query
+      - In case of POSTGRES wrap table names with double quotes For Example -> SELECT DISTINCT make FROM "Car";
+
+      naturalQuery:
+      "${naturalQuery}"
       `;
-  
+
       const result = await this.model.generateContent(prompt);
       let sql = result.response.text().trim();
-      
+
       // Clean up the response
       sql = sql.replace(/```sql/gi, '')
-               .replace(/```/g, '')
-               .replace(/`/g, '')
-               .trim();
-  
+        .replace(/```/g, '')
+        .replace(/`/g, '')
+        .trim();
+
       // Basic validation
       if (!sql.toLowerCase().startsWith('select')) {
         throw new Error('Generated query must start with SELECT');
       }
-  
+
       return sql;
-    } catch (error:any) {
+    } catch (error: any) {
       logger.error(`SQL generation failed: ${error.message}`);
       throw new Error(`Failed to generate SQL: ${error.message}`);
     }
@@ -505,39 +508,39 @@ export default class MultiDBTextToSQLDataSource extends GSDataSource {
   ): Promise<void> {
     try {
       if (!this.redisClient?.isOpen) {
-          logger.warn('Redis client not connected');
-          return;
+        logger.warn('Redis client not connected');
+        return;
       }
 
       const key = `sql_cache:${Buffer.from(query).toString('base64')}`;
       await this.redisClient.set(key, JSON.stringify(result), {
-          EX: 3600 // 1 hour expiration
+        EX: 3600 // 1 hour expiration
       });
-  } catch (error) {
+    } catch (error) {
       logger.warn('Cache storage failed, continuing without cache');
-  }
+    }
   }
 
   private async getCachedQuery(
     query: string,
     dbType: string,
   ): Promise<QueryResult | null> {
-    
+
 
     try {
       if (!this.redisClient?.isOpen) {
-          logger.warn('Redis client not connected');
-          return null;
+        logger.warn('Redis client not connected');
+        return null;
       }
-      
+
       const key = `sql_cache:${Buffer.from(query).toString('base64')}`;
       const cached = await this.redisClient.get(key);
       return cached ? JSON.parse(cached) : null;
-  } catch (error) {
+    } catch (error) {
       logger.warn('Cache retrieval failed, continuing without cache');
       return null;
+    }
   }
-}
 
   async cleanup(): Promise<void> {
     try {
