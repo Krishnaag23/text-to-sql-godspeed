@@ -1,5 +1,3 @@
-### plugin
-
 # Text-to-SQL DataSource Plugin Documentation
 
 ## Overview
